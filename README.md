@@ -1,2 +1,2 @@
 # Manage-OpsAuthentication
-Manage authentication to vRealize Operations Manager (vROps) e.g. get authentication token
+Manage authentication to vRealize Operations Manager (vROps) e.g. get authentication token, set policy to trust self-signed certificates, tell PowerShell to use TLS1.2 as security protocol.
