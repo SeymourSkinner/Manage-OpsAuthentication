@@ -30,7 +30,7 @@
 
 
 function Get-OpsAuthToken {
-  <#
+<#
   .SYNOPSIS
     Get an authentication token object which can be used for future calls into vROps.
   
@@ -83,7 +83,7 @@ function Get-OpsAuthToken {
     Save in $authToken the value of the token property in the first positive result.
     -silent prevents printing warning
   
-  #>
+#>
   
   
     [cmdletbinding()]Param(
@@ -135,29 +135,28 @@ function Get-OpsAuthToken {
 }
   
 function Set-SecurityCertificateSettings {
-  <#
-    .SYNOPSIS
-      Set system settings about how to handle security certificates.
+<#
+  .SYNOPSIS
+    Set system settings about how to handle security certificates.
   
-    .DESCRIPTION
-      Set system settings about how to handle security certificates. 
+  .DESCRIPTION
+    Set system settings about how to handle security certificates. 
   
-      This may be necessary to fix errors such as:
-          The underlying connection was closed. An unexpected error occurred on a send.
+    This may be necessary to fix errors such as:
+        The underlying connection was closed. An unexpected error occurred on a send.
       
-      Changes [System.Net.ServicePointManager]::CertificatePolicy
+    Changes [System.Net.ServicePointManager]::CertificatePolicy
+#>
   
-  #>
+    [cmdletbinding()]Param(
+        # If this switch is used, change this session's [System.Net.ServicePointManager]::CertificatePolicy to accept any certificate.
+        [switch]
+        $TrustAllCerts
+    )
   
-      [cmdletbinding()]Param(
-          # If this switch is used, change this session's [System.Net.ServicePointManager]::CertificatePolicy to accept any certificate.
-          [switch]
-          $TrustAllCerts
-      )
-  
-      # Security protocols and Certificate Policy.
-      # Fix for error, "The underlying connection was closed. An unexpected error occurred on a send."
-      add-type @"
+    # Security protocols and Certificate Policy.
+    # Fix for error, "The underlying connection was closed. An unexpected error occurred on a send."
+    add-type @"
       using System.Net;
       using System.Security.Cryptography.X509Certificates;
       public class TrustAllCertsPolicy : ICertificatePolicy {
@@ -169,20 +168,20 @@ function Set-SecurityCertificateSettings {
       }
 "@  # Make sure this line is indented all the way to the left so that it closes the block quote.
 
-      Write-Verbose "$(get-date) Current certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
-      if ( $TrustAllCerts ) {
-          [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-          Write-Verbose "$(get-date) New certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
-      }
+    Write-Verbose "$(get-date) Current certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
+    if ( $TrustAllCerts ) {
+        [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+        Write-Verbose "$(get-date) New certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
+    }
   
      
-  }
+}
   
   
   
 function Set-SecurityProtocol {
 <#
-.SYNOPSIS
+  .SYNOPSIS
     Specify which security protocol to use for web requests e.g. TLS 1.2 vs. SSL3.
 #>
   
