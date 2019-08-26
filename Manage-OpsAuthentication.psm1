@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.1 (2019/08)
+  Version: 1.2 (2019/08/26)
   Author: Craig Risinger
   License: freeware, without any warranty
 
@@ -31,100 +31,108 @@
 
 function Get-OpsAuthToken {
   <#
-    .SYNOPSIS
-      Get an authentication token object which can be used for future calls into vROps.
+  .SYNOPSIS
+    Get an authentication token object which can be used for future calls into vROps.
   
-    .DESCRIPTION
-      Returns an object. The authentication token string itself is contained within the 'token' property of the object.
-  
-      NOTE: Do not assume that the call works. Check that a token is delivered.
+  .DESCRIPTION
+    Returns an object. The authentication token string itself is contained within the 'token' property of the object.
   
   
-    .EXAMPLE
-        # Allow self-signed certificates
-        Set-SecurityCertificateSettings -TrustAllCerts
+  .EXAMPLE
+    # Allow self-signed certificates
+    Set-SecurityCertificateSettings -TrustAllCerts
   
-        # Tell PowerShell to use TLS1.2 by default for encrypted network traffice
-        Set-SecurityProtocol
+    # Tell PowerShell to use TLS1.2 by default for encrypted network traffic
+    Set-SecurityProtocol
   
-        # Get full token object including Expiration info. Assumes $server, $username, $password are set and you are using a local username
-        $fulltoken = Get-OpsAuthToken -server $server -username $username -password $password -vRopsAuthSource 'local'
+    # Get full token object including Expiration info. Assumes $server, $username, $password are set and you are using a local username
+    $fulltoken = Get-OpsAuthToken -server $server -username $username -password $password -vRopsAuthSource 'local'
   
-        # Get just the token itself
-        $authtoken = $fulltoken.token
+    # Get just the token itself
+    $authtoken = $fulltoken.token
   
-    .EXAMPLE
-      $server = read-host -prompt "Enter the name of your vROps server"
-      $tokenObj = Get-OpsAuthToken -username $username -password $password -vROpsAuthSource $authsource -Server $server
-      $tokenObj | Get-Member 
-      $tokenObj.token
+  .EXAMPLE
+    $server = read-host -prompt "Enter the name of your vROps server"
+    $tokenObj = Get-OpsAuthToken $server $username $password $authsource 
+    $tokenObj | Get-Member 
+    $tokenObj.token
   
-      Get a token object for your vRops, assuming you have valid values set in variables $username, $password, $authsource.
-      See the properties of the token object returned, which includes the token itself and expiration info.
-      Then see just the token itself, in the ".token" property of the returned object. (This is like a password. Do not let others see it!)
+    Get a token object for your vRops, assuming you have valid values set in variables $server, $username, $password, $authsource.
+    See the properties of the token object returned, which includes the token itself and expiration info.
+    Then see just the token itself, in the ".token" property of the returned object. (This is like a password. Do not let others see it!)
+
   
   
-    .EXAMPLE
-      # In case an older version has a bug where getting an auth token sometimes needs multiple attempts
-      write "Looping to repeatedly try to get a token."
-      $results = @()
-      Foreach ($j in (1..15)) {
-          write "------ Try $($j)"
-          $results += Get-OpsAuthToken -username $username -password $password -vROpsAuthSource $authsource -Server $server
-          if ($results.count -gt 0) {
-              break
-          } else {
-              sleep 2
-          }
-      }
-      $authToken = $results[0].token
-      write "You now have an authentication token saved in `$authToken."
+  .EXAMPLE
+    # In case an older version has a bug where getting an auth token sometimes needs multiple attempts
+    write "Looping to repeatedly try to get a token."
+    $results = @()
+    Foreach ($j in (1..15)) {
+        write "------ Try $($j)"
+        $results += Get-OpsAuthToken -username $username -password $password -vROpsAuthSource $authsource -Server $server -silent
+        if ($results.count -gt 0) {
+            break
+        } else {
+            sleep 2
+        }
+    }
+    $authToken = $results[0].token
+    write "You now have an authentication token saved in `$authToken."
   
-      Execute this function up to 15 times, saving the first positive result, and sleeping 2 seconds between each run.
-      Save in $authToken the value of the token property in the first positive result.
+    Execute this function up to 15 times, saving the first positive result, and sleeping 2 seconds between each run.
+    Save in $authToken the value of the token property in the first positive result.
+    -silent prevents printing warning
   
   #>
   
   
-      [cmdletbinding()]Param(
-          # Username as you would enter it at the vROps GUI login page.
-          $username,
+    [cmdletbinding()]Param(
+        # The vROps FQDN (fully-qualified domain name).
+        [Parameter(Mandatory=$true,Position=0)]
+        [string]
+        $Server,
+
+        # Username as you would enter it at the vROps GUI login page.
+        [Parameter(Mandatory=$true,Position=1)]
+        [string]
+        $username,
   
-          # Password as you would enter it at the vROps GUI login page.
-          $password,
+        # Password as you would enter it at the vROps GUI login page.
+        [Parameter(Mandatory=$true,Position=2)]
+        [string]
+        $password,
   
-          # The authentication source you choose from the popup menu on the vROps GUI login page. If "Local Users", specify this as "local", or leave blank as that is the default.
-          $vROpsAuthSource='local',
+        # The authentication source you choose from the popup menu on the vROps GUI login page. If "Local Users", specify this as "local", or leave blank as that is the default.
+        [Parameter(Mandatory=$false,Position=3)]
+        [string]
+        $vROpsAuthSource='local',
   
-          # The vROps FQDN (fully-qualified domain name).
-          $Server,
+        # Switch. If $true (i.e. if -silent is used), do not print a warning about the need to keep your authtoken private.
+        [switch]$silent
+    )
+
+    $baseURL = "https://$($Server)/suite-api"
+    $commandURL = "/api/auth/token/acquire"
+    $URL = $baseURL + $commandURL 
+    $RestMethod = 'POST'
   
-          # If $true, do not print a warning about the need to keep your authtoken private.
-          [boolean]$silent=$false
-      )
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Accept", "application/json")
+    $headers.Add("Cache-Control", "no-cache")
   
-      $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-      $headers.Add("Content-Type", "application/json")
-      $headers.Add("Accept", "application/json")
-      $headers.Add("Cache-Control", "no-cache")
-  
-      $body = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-      $body.Add("username", "$username")
-      $body.Add("password", "$password")
-      $body.Add("authSource", "$vROpsAuthSource")
+    $body = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $body.Add("username", "$username")
+    $body.Add("password", "$password")
+    $body.Add("authSource", "$vROpsAuthSource")
       
-      $jsonBody = $body | ConvertTo-Json
+    $jsonBody = $body | ConvertTo-Json
   
-      $baseURL = "https://$($Server)/suite-api"
-      $commandURL = "/api/auth/token/acquire"
-      $URL = $baseURL + $commandURL 
-      $RestMethod = 'POST'
+    if ( -not $silent ){ Write-Warning "Keep your authentication token hidden. Remember, it is equivalent to a username and password." }
   
-      if ( -not $silent ){ Write-Warning "Keep your authentication token hidden. Remember, it is equivalent to a username and password." }
+    Invoke-RestMethod -Method $RestMethod -Uri $URL -Headers $Headers -Body $JsonBody 
   
-      Invoke-RestMethod -Method $RestMethod -Uri $URL -Headers $Headers -Body $JsonBody 
-  
-  }
+}
   
 function Set-SecurityCertificateSettings {
   <#
