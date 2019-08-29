@@ -35,7 +35,8 @@ function Get-OpsAuthToken {
     Get an authentication token object which can be used for future calls into vROps.
   
   .DESCRIPTION
-    Returns an object. The authentication token string itself is contained within the 'token' property of the object.
+    If called with -noMetadata, returns just the authentication token string. Otherwise, returns an object, and
+    the authentication token string itself is contained within the 'token' property of the object.
   
   
   .EXAMPLE
