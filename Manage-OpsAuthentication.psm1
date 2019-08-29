@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.2 (2019/08/26)
+  Version: 1.3 (2019/08/29)
   Author: Craig Risinger
   License: freeware, without any warranty
 
@@ -23,8 +23,8 @@
 
     Set-SecurityCertificateSettings -TrustAllCerts # if using self-signed certs
     Set-SecurityProtocol # defaults to TLS 1.2, which is required by vROps 7.5
-    $fulltoken = Get-OpsAuthToken -server $server -username $username -password $password -vRopsAuthSource $authSource
-    $authtoken = $fulltoken.token
+    $authtoken = Get-OpsAuthToken -noMetadata -server $server -username $username -password $password -vRopsAuthSource $authSource
+
 #>
 
 
@@ -45,11 +45,17 @@ function Get-OpsAuthToken {
     # Tell PowerShell to use TLS1.2 by default for encrypted network traffic
     Set-SecurityProtocol
   
+    # Get just the token, excluding metadata like Expiration info. Assumes $server, $username, $password are set and you are using a local username
+    $authtoken = Get-OpsAuthToken -noMetadata -server $server -username $username -password $password -vRopsAuthSource 'local'
+  
+
+  .EXAMPLE
     # Get full token object including Expiration info. Assumes $server, $username, $password are set and you are using a local username
     $fulltoken = Get-OpsAuthToken -server $server -username $username -password $password -vRopsAuthSource 'local'
-  
-    # Get just the token itself
+
+    # Extract just the token itself
     $authtoken = $fulltoken.token
+  
   
   .EXAMPLE
     $server = read-host -prompt "Enter the name of your vROps server"
@@ -84,8 +90,7 @@ function Get-OpsAuthToken {
     -silent prevents printing warning
   
 #>
-  
-  
+    
     [cmdletbinding()]Param(
         # The vROps FQDN (fully-qualified domain name).
         [Parameter(Mandatory=$true,Position=0)]
@@ -106,6 +111,9 @@ function Get-OpsAuthToken {
         [Parameter(Mandatory=$false,Position=3)]
         [string]
         $vROpsAuthSource='local',
+
+        # Switch. If used, return only the token itself, excluding metadata like expirationdate.
+        [switch]$noMetadata,
   
         # Switch. If $true (i.e. if -silent is used), do not print a warning about the need to keep your authtoken private.
         [switch]$silent
@@ -130,8 +138,14 @@ function Get-OpsAuthToken {
   
     if ( -not $silent ){ Write-Warning "Keep your authentication token hidden. Remember, it is equivalent to a username and password." }
   
-    Invoke-RestMethod -Method $RestMethod -Uri $URL -Headers $Headers -Body $JsonBody 
+    $fullToken = Invoke-RestMethod -Method $RestMethod -Uri $URL -Headers $Headers -Body $JsonBody 
   
+    if ($noMetadata) {
+        $fullToken.token
+    } else {
+        $fullToken
+    }
+
 }
   
 function Set-SecurityCertificateSettings {
