@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.3 (2019/08/29)
+  Version: 1.4 (2019/08/30)
   Author: Craig Risinger
   License: freeware, without any warranty
 
@@ -8,22 +8,14 @@
   To load these functions:
     Import-Module <pathToThisFile>.psm1
   
-  To see commands available:
+  To see commands available from this module:
     Get-Command -Module <nameOfThisModule>  
 
   To get help including examples:
     Get-Help <functionName> -Full
 
-  Common workflow:
-    # set variables
-    $server = <yourvROpsFQDN>
-    $username = <yourUsername>
-    $password = <yourPassword>  # remember to clear screen and clear-history and, once you have the token, "remove-variable password" 
-    $authSource = <name of the source in popup on login page, or "local">
-
-    Set-SecurityCertificateSettings -TrustAllCerts # if using self-signed certs
-    Set-SecurityProtocol # defaults to TLS 1.2, which is required by vROps 7.5
-    $authtoken = Get-OpsAuthToken -noMetadata -server $server -username $username -password $password -vRopsAuthSource $authSource
+  To see how to get a session:
+    Show-HowToGetOpsSession
 
 #>
 
@@ -191,9 +183,7 @@ function Set-SecurityCertificateSettings {
   
      
 }
-  
-  
-  
+    
 function Set-SecurityProtocol {
 <#
   .SYNOPSIS
@@ -222,3 +212,39 @@ function Get-SecurityProtocol {
   
   
   
+
+
+function Show-HowToGetOpsSession {
+
+    write-host "Getting a session:"
+    write-host ""
+    write-host 'Use a username and password to get an authentication token. Save the vROps name in $server and the token in $authtoken. That gives you 
+a sort of session. Commands can use those variables to connect to the vROps. You can pass them in as parameters to commands (such as 
+"get-OpsSomething -server $server -authtoken $authtoken XYZ..."). Some commands might not require explicitly stating the parameters but instead use 
+the values automatically as long as you save them in variables called $server and $authtoken (just "get-OpsSomething XYZ...").
+'
+
+    write-host 'Run the following commands:
+
+      # set $server and $authtoken
+        # set variables
+        $server = Read-Host -Prompt "Enter FQDN of vROps server"
+        $username = Read-Host -prompt "Enter username for $server"
+        $vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter `"local`"."
+        $secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username"
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
+        $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+
+
+        # get authentication token
+        $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
+    '
+    write-host 'If you get errors, you might need to run these commands first and retry:
+      # Trust all certificates including self-signed
+        Set-SecurityCertificateSettings -TrustAllCerts
+        
+      # Tell PowerShell to use TLS1.2 for encryption, required by vROps as of 7.5
+        Set-SecurityProtocol TLS12   
+    '
+
+}
