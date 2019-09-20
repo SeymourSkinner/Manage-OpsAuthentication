@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.4 (2019/08/30)
+  Version: 1.5 (2019/09/20)
   Author: Craig Risinger
   License: freeware, without any warranty
 
@@ -14,11 +14,98 @@
   To get help including examples:
     Get-Help <functionName> -Full
 
+
   To see how to get a session:
-    Show-HowToGetOpsSession
+    Get-Help Get-OpsSession -Full    
+
+  Typical way to get a session:
+    $server,$authtoken = Get-OpsSession -returnValues -TrustAllCerts 
 
 #>
 
+
+function Get-OpsSession {
+<#
+  .SYNOPSIS
+    Get a sort of session with vROps by prompting for login information and returning server name and authentication token values. Save those in $server and $authtoken.
+
+  .DESCRIPTION
+    Some PowerShell vROps commands have parameters for -server and -authtoken. Many of those commands will inherit
+    any values you have already set at the command line for $server and $authtoken. So, if you set valid
+    values for $server and $authtoken, you can just say "Do-OpsSomething" instead of "Do-OpSomething -server <myserver> -authtoken <myauthtoken>"
+    This function prompts you for login input, gets an authentication token, and returns the relevant values.
+    
+  .EXAMPLE
+    $server,$authtoken = Get-OpsSession -returnValues
+
+    This is the recommended way.
+
+    Prompt user for login information. Return both the servername of the vROps and a valid authentication token for it, and
+    save those in $server and $authtoken.
+
+ .EXAMPLE
+    $server,$authtoken = Get-OpsSession -returnValues -TrustAllCerts
+
+    -TrustAllCerts means that your PowerShell session will trust self-signed certificates when attempting secure connections.
+
+  .EXAMPLE
+    . Get-OpsSession 
+
+    This way is deprecated. It is provided for simplicity of use.
+    
+    Note the initial ". ", which is "dot-sourcing" the function. That makes the values of variables
+    set inside this function persist after the function stops running. This means $server and $authtoken will have values (but so 
+    will some other variable names which are meant to be internal to this function, for example $password which holds the password you enter).
+
+#>
+
+    [cmdletbinding()]Param(
+        # If used, function returns values which can be saved into $server,$authtoken. Otherwise, you must dot-source to set those variables in the calling function/shell.
+        # Note that we do not want to display authtoken carelessly on the screen, because that is equivalent to a username and password.
+        [switch]$returnValues,
+
+        # If used, all certificates will be trusted. Useful if your vROps certificate is not signed by a regular Certificate Authority (CA).
+        [switch]$TrustAllCerts,
+
+        # Security protocol to be used for connections. vROps 7.5 requires TLS 1.2.
+        $SecurityProtocol = 'TLS12'
+    )
+
+
+
+    # Prompt users who have not read the help
+    if (-not $returnValues ) {
+        write-warning "Invoke this function saving output into variables called `$server and `$authtoken, like this: 
+
+            `$server,`$authtoken = Get-OpsSession -returnValues
+
+        "
+        write-host "The above is preferable, but you could dot-source this function to get the variable values to persist:  . Get-OpsSession"
+        write-host "Dot-sourcing will make values for `$server and `$authtoken (but also all other variables inside this function) persist after the function finishes running."
+    }
+
+    # security
+    if ( $TrustAllCerts ) {
+        Set-SecurityCertificateSettings -TrustAllCerts
+    }
+    Set-SecurityProtocol $SecurityProtocol   
+
+    # prompt for login info
+    $server = Read-Host -Prompt "Enter FQDN of vROps server"
+    $local:vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter nothing or `"local`"."
+    if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = 'local' }
+    $local:username = Read-Host -prompt "Enter username for $server"
+    $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username"
+    $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
+    $local:password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+
+    $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
+
+    if ($returnValues) {
+        $server,$authtoken
+    }
+    
+}
 
 
 function Get-OpsAuthToken {
@@ -140,6 +227,7 @@ function Get-OpsAuthToken {
     }
 
 }
+
   
 function Set-SecurityCertificateSettings {
 <#
@@ -183,6 +271,7 @@ function Set-SecurityCertificateSettings {
   
      
 }
+
     
 function Set-SecurityProtocol {
 <#
@@ -200,6 +289,7 @@ function Set-SecurityProtocol {
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::$protocol
       
 } 
+
   
 function Get-SecurityProtocol {   
 <#
@@ -212,7 +302,6 @@ function Get-SecurityProtocol {
   
   
   
-
 
 function Show-HowToGetOpsSession {
 
@@ -248,3 +337,6 @@ the values automatically as long as you save them in variables called $server an
     '
 
 }
+
+
+
