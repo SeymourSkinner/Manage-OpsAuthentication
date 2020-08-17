@@ -1,9 +1,9 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.6 (2020/7/16)
+  Version: 1.7 (2020/8/17) 
   Author: Craig Risinger
   License: freeware, without any warranty
-
+  
   
   To load these functions:
     Import-Module <pathToThisFile>.psm1
@@ -28,7 +28,7 @@
 
 
 function Get-OpsSession {
-  <#
+<#
     .SYNOPSIS
       Get a sort of session with vROps by prompting for login information and returning server name and authentication token values. Save those in $server and $authtoken.
   
@@ -61,58 +61,56 @@ function Get-OpsSession {
       will some other variable names which are meant to be internal to this function, for example $password which holds the password you enter).
   
   #>
+
+  [cmdletbinding()]Param(
+    $server,
+    $vRopsAuthSource,
+    $username,
+    
+    # If used, function returns values which can be saved into $server,$authtoken. Otherwise, you must dot-source to set those variables in the calling function/shell.
+    # Note that we do not want to display authtoken carelessly on the screen, because that is equivalent to a username and password.
+    [switch]$returnValues,
+
+    # If used, all certificates will be trusted. Useful if your vROps certificate is not signed by a regular Certificate Authority (CA).
+    [switch]$TrustAllCerts,
+
+    # Security protocol to be used for connections. vROps 7.5 requires TLS 1.2.
+    $SecurityProtocol = 'TLS12'
+  )
   
-      [cmdletbinding()]Param(
-        $server,
-        $vRopsAuthSource,
-        $username,
-        
-        # If used, function returns values which can be saved into $server,$authtoken. Otherwise, you must dot-source to set those variables in the calling function/shell.
-        # Note that we do not want to display authtoken carelessly on the screen, because that is equivalent to a username and password.
-        [switch]$returnValues,
-  
-        # If used, all certificates will be trusted. Useful if your vROps certificate is not signed by a regular Certificate Authority (CA).
-        [switch]$TrustAllCerts,
-  
-        # Security protocol to be used for connections. vROps 7.5 requires TLS 1.2.
-        $SecurityProtocol = 'TLS12'
-      )
-  
-  
-  
-      # Prompt users who have not read the help
-      if (-not $returnValues ) {
-          write-warning "Invoke this function saving output into variables called `$server and `$authtoken, like this: 
-  
-              `$server,`$authtoken = Get-OpsSession -returnValues
-  
-          "
-          write-host "The above is preferable, but you could dot-source this function to get the variable values to persist:  . Get-OpsSession"
-          write-host "Dot-sourcing will make values for `$server and `$authtoken (but also all other variables inside this function) persist after the function finishes running."
-      }
-  
-      # security
-      if ( $TrustAllCerts ) {
-          Set-SecurityCertificateSettings -TrustAllCerts
-      }
-      Set-SecurityProtocol $SecurityProtocol   
-  
-      # prompt for login info
-      if ( -not $server ) { $server = Read-Host -Prompt "Enter FQDN of vROps server" }
-      if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter nothing or `"local`"." }
-      if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = 'local' }
-      if ( -not $local:username) { $local:username = Read-Host -prompt "Enter username for $server" }
-      $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username $($username) on server $($server)"
-      $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
-      $local:password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-  
-      $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
-  
-      if ($returnValues) {
-          $server,$authtoken
-      }
-      
+  # Prompt users who have not read the help
+  if (-not $returnValues ) {
+      write-warning "Invoke this function saving output into variables called `$server and `$authtoken, like this: 
+
+          `$server,`$authtoken = Get-OpsSession -returnValues
+
+      "
+      write-host "The above is preferable, but you could dot-source this function to get the variable values to persist:  . Get-OpsSession"
+      write-host "Dot-sourcing will make values for `$server and `$authtoken (but also all other variables inside this function) persist after the function finishes running."
   }
+
+  # security
+  if ( $TrustAllCerts ) {
+      Set-SecurityCertificateSettings -TrustAllCerts
+  }
+  Set-SecurityProtocol $SecurityProtocol   
+
+  # prompt for login info
+  if ( -not $server ) { $server = Read-Host -Prompt "Enter FQDN of vROps server" }
+  if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter nothing or `"local`"." }
+  if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = 'local' }
+  if ( -not $local:username) { $local:username = Read-Host -prompt "Enter username for $server" }
+  $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username $($username) on server $($server)"
+  $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
+  $local:password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+
+  $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
+
+  if ($returnValues) {
+      $server,$authtoken
+  }
+      
+}
 
 
 function Get-OpsAuthHash {
@@ -214,10 +212,10 @@ function Get-OpsAuthHash {
     }
 
 }
-  
-  
+
+    
 function Get-OpsAuthToken {
-  <#
+<#
     .SYNOPSIS
       Get an authentication token object which can be used for future calls into vROps.
     
@@ -279,124 +277,168 @@ function Get-OpsAuthToken {
     
   #>
       
-      [cmdletbinding()]Param(
-          # The vROps FQDN (fully-qualified domain name).
-          [Parameter(Mandatory=$true,Position=0)]
-          [string]
-          $Server,
+    [cmdletbinding()]Param(
+        # The vROps FQDN (fully-qualified domain name).
+        [Parameter(Mandatory=$true,Position=0)]
+        [string]
+        $Server,
   
-          # Username as you would enter it at the vROps GUI login page.
-          [Parameter(Mandatory=$true,Position=1)]
-          [string]
-          $username,
+        # Username as you would enter it at the vROps GUI login page.
+        [Parameter(Mandatory=$true,Position=1)]
+        [string]
+        $username,
     
-          # Password as you would enter it at the vROps GUI login page.
-          [Parameter(Mandatory=$true,Position=2)]
-          [string]
-          $password,
+        # Password as you would enter it at the vROps GUI login page.
+        [Parameter(Mandatory=$true,Position=2)]
+        [string]
+        $password,
     
-          # The authentication source you choose from the popup menu on the vROps GUI login page. If "Local Users", specify this as "local", or leave blank as that is the default.
-          [Parameter(Mandatory=$false,Position=3)]
-          [string]
-          $vROpsAuthSource='local',
+        # The authentication source you choose from the popup menu on the vROps GUI login page. If "Local Users", specify this as "local", or leave blank as that is the default.
+        [Parameter(Mandatory=$false,Position=3)]
+        [string]
+        $vROpsAuthSource='local',
   
-          # Switch. If used, return only the token itself, excluding metadata like expirationdate.
-          [switch]$noMetadata,
+        # Switch. If used, return only the token itself, excluding metadata like expirationdate.
+        [switch]$noMetadata,
     
-          # Switch. If $true (i.e. if -silent is used), do not print a warning about the need to keep your authtoken private.
-          [switch]$silent
-      )
+        # Switch. If $true (i.e. if -silent is used), do not print a warning about the need to keep your authtoken private.
+        [switch]$silent
+    )
   
-      $baseURL = "https://$($Server)/suite-api"
-      $commandURL = "/api/auth/token/acquire"
-      $URL = $baseURL + $commandURL 
-      $RestMethod = 'POST'
+    $baseURL = "https://$($Server)/suite-api"
+    $commandURL = "/api/auth/token/acquire"
+    $URL = $baseURL + $commandURL 
+    $RestMethod = 'POST'
     
-      $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-      $headers.Add("Content-Type", "application/json")
-      $headers.Add("Accept", "application/json")
-      $headers.Add("Cache-Control", "no-cache")
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+    $headers.Add("Accept", "application/json")
+    $headers.Add("Cache-Control", "no-cache")
     
-      $body = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-      $body.Add("username", "$username")
-      $body.Add("password", "$password")
-      $body.Add("authSource", "$vROpsAuthSource")
+    $body = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $body.Add("username", "$username")
+    $body.Add("password", "$password")
+    $body.Add("authSource", "$vROpsAuthSource")
         
-      $jsonBody = $body | ConvertTo-Json
+    $jsonBody = $body | ConvertTo-Json
     
-      if ( -not $silent ){ Write-Warning "Keep your authentication token hidden. Remember, it is equivalent to a username and password." }
+    if ( -not $silent ){ Write-Warning "Keep your authentication token hidden. Remember, it is equivalent to a username and password." }
     
-      $fullToken = Invoke-RestMethod -Method $RestMethod -Uri $URL -Headers $Headers -Body $JsonBody 
+    $fullToken = Invoke-RestMethod -Method $RestMethod -Uri $URL -Headers $Headers -Body $JsonBody 
     
-      if ($noMetadata) {
-          $fullToken.token
-      } else {
-          $fullToken
-      }
+    if ($noMetadata) {
+        $fullToken.token
+    } else {
+        $fullToken
+    }
   
-  }
+}
+
   
+function Revoke-OpsAuthToken {
+<#
+  .SYNOPSIS
+    Release an authentication token to invalidate it for vROps API calls.
+
+  .DESCRIPTION
+    Release an authentication token to invalidate it for vROps API calls.
+
+  .EXAMPLE
+    # Tell vROps at $server to stop treating $authtoken as a valid authentication token
+    Revoke-OpsAuthToken -server $server -authtoken $authtoken
+#>
+      
+    [cmdletbinding()]Param(
+        # The vROps FQDN (fully-qualified domain name).
+        [Parameter(Mandatory=$true,Position=0)]
+        [string]
+        $Server,
+          
+        # The authentication token to be released.
+        [Parameter(Mandatory=$true,Position=1)]
+        [string]
+        $authToken 
+    )
+  
+    $baseURL = "https://$($Server)/suite-api"
+    $commandURL = "/api/auth/token/release"
+    $URL = $baseURL + $commandURL 
+    $RestMethod = 'POST'
+
+    if ( ! $authtoken  ) {
+        throw {"You must specify an authenticationtoken."}
+    } 
+
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Authorization", "vRealizeOpsToken $($authToken)")
+
+    Invoke-RestMethod -Method $RestMethod -Uri $URL -Headers $Headers 
+
+}
     
+
+
+
 function Set-SecurityCertificateSettings {
-  <#
-    .SYNOPSIS
-      Set system settings about how to handle security certificates.
+<#
+      .SYNOPSIS
+        Set system settings about how to handle security certificates.
     
-    .DESCRIPTION
-      Set system settings about how to handle security certificates. 
+      .DESCRIPTION
+        Set system settings about how to handle security certificates. 
     
-      This may be necessary to fix errors such as:
-          The underlying connection was closed. An unexpected error occurred on a send.
+        This may be necessary to fix errors such as:
+            The underlying connection was closed. An unexpected error occurred on a send.
         
-      Changes [System.Net.ServicePointManager]::CertificatePolicy
-  #>
+        Changes [System.Net.ServicePointManager]::CertificatePolicy
+    #>
     
-      [cmdletbinding()]Param(
-          # If this switch is used, change this session's [System.Net.ServicePointManager]::CertificatePolicy to accept any certificate.
-          [switch]
-          $TrustAllCerts
-      )
+    [cmdletbinding()]Param(
+        # If this switch is used, change this session's [System.Net.ServicePointManager]::CertificatePolicy to accept any certificate.
+        [switch]
+        $TrustAllCerts
+    )
     
-      # Security protocols and Certificate Policy.
-      # Fix for error, "The underlying connection was closed. An unexpected error occurred on a send."
-      add-type @"
-        using System.Net;
-        using System.Security.Cryptography.X509Certificates;
-        public class TrustAllCertsPolicy : ICertificatePolicy {
-            public bool CheckValidationResult(
-                ServicePoint srvPoint, X509Certificate certificate,
-                WebRequest request, int certificateProblem) {
-                return true;
-            }
+    # Security protocols and Certificate Policy.
+    # Fix for error, "The underlying connection was closed. An unexpected error occurred on a send."
+    add-type @"
+    using System.Net;
+    using System.Security.Cryptography.X509Certificates;
+    public class TrustAllCertsPolicy : ICertificatePolicy {
+        public bool CheckValidationResult(
+            ServicePoint srvPoint, X509Certificate certificate,
+            WebRequest request, int certificateProblem) {
+            return true;
         }
+    }
 "@  # Make sure this line is indented all the way to the left so that it closes the block quote.
   
-      Write-Verbose "$(get-date) Current certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
-      if ( $TrustAllCerts ) {
-          [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-          Write-Verbose "$(get-date) New certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
-      }
+    Write-Verbose "$(get-date) Current certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
+    if ( $TrustAllCerts ) {
+        [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+        Write-Verbose "$(get-date) New certificate policy: $([System.Net.ServicePointManager]::CertificatePolicy) "
+    }
     
        
-  }
+}
   
       
 function Set-SecurityProtocol {
-  <#
+<#
     .SYNOPSIS
       Specify which security protocol to use for web requests e.g. TLS 1.2 vs. SSL3.
   #>
     
-      [cmdletbinding()]Param(
-          # Name of one security protocol which should be used during this PowerShell session. E.g. 'Tls12' or 'Ssl3'.
-          [Parameter(Mandatory=$false,Position=0)]
-          [string]
-          $protocol = 'Tls12'                      
-      )                       
+    [cmdletbinding()]Param(
+        # Name of one security protocol which should be used during this PowerShell session. E.g. 'Tls12' or 'Ssl3'.
+        [Parameter(Mandatory=$false,Position=0)]
+        [string]
+        $protocol = 'Tls12'                      
+    )                       
         
-      [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::$protocol
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::$protocol
         
-  } 
+} 
   
     
 function Get-SecurityProtocol {   
@@ -404,49 +446,49 @@ function Get-SecurityProtocol {
   .SYNOPSIS
       Display which security protocol to use for web requests e.g. TLS 1.2 vs. SSL3.
   #>                                                                                               
-      [Net.ServicePointManager]::SecurityProtocol         
+    [Net.ServicePointManager]::SecurityProtocol         
        
-  }
+}
     
     
     
   
 function Show-HowToGetOpsSession {
   
-      write-host "Getting a session:"
-      write-host ""
-      write-host 'Use a username and password to get an authentication token. Save the vROps name in $server and the token in $authtoken. That gives you 
-  a sort of session. Commands can use those variables to connect to the vROps. You can pass them in as parameters to commands (such as 
-  "get-OpsSomething -server $server -authtoken $authtoken XYZ..."). Some commands might not require explicitly stating the parameters but instead use 
-  the values automatically as long as you save them in variables called $server and $authtoken (just "get-OpsSomething XYZ...").
-  '
+    write-host "Getting a session:"
+    write-host ""
+    write-host 'Use a username and password to get an authentication token. Save the vROps name in $server and the token in $authtoken. That gives you 
+a sort of session. Commands can use those variables to connect to the vROps. You can pass them in as parameters to commands (such as 
+"get-OpsSomething -server $server -authtoken $authtoken XYZ..."). Some commands might not require explicitly stating the parameters but instead use 
+the values automatically as long as you save them in variables called $server and $authtoken (just "get-OpsSomething XYZ...").
+'
   
-      write-host 'Run the following commands:
+    write-host 'Run the following commands:
   
-        # set $server and $authtoken
-          # set variables
-          $server = Read-Host -Prompt "Enter FQDN of vROps server"
-          $username = Read-Host -prompt "Enter username for $server"
-          $vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter `"local`"."
-          $secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username"
-          $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
-          $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+# set $server and $authtoken
+    # set variables
+    $server = Read-Host -Prompt "Enter FQDN of vROps server"
+    $username = Read-Host -prompt "Enter username for $server"
+    $vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter `"local`"."
+    $secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username"
+    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
+    $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
   
   
-          # get authentication token
-          $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
-      '
-      write-host 'If you get errors, you might need to run these commands first and retry:
-        # Trust all certificates including self-signed
-          Set-SecurityCertificateSettings -TrustAllCerts
+    # get authentication token
+    $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
+'
+    write-host 'If you get errors, you might need to run these commands first and retry:
+# Trust all certificates including self-signed
+    Set-SecurityCertificateSettings -TrustAllCerts
           
-        # Tell PowerShell to use TLS1.2 for encryption, required by vROps as of 7.5
-          Set-SecurityProtocol TLS12   
-      '
+# Tell PowerShell to use TLS1.2 for encryption, required by vROps as of 7.5
+    Set-SecurityProtocol TLS12   
+'
 
-      write-host 'If you need to work with multiple vROps, see the Get-OpsAuthHash command.'
+    write-host 'If you need to work with multiple vROps, try: get-help Get-OpsAuthHash -full'
   
-  }
+}
   
   
   
