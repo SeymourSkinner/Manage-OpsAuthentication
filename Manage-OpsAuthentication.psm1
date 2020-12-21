@@ -1,12 +1,17 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.7 (2020/8/17) 
+  Version: 1.8 (2020/12/21) 
   Author: Craig Risinger
   License: freeware, without any warranty
   
   
   To load these functions:
-    Import-Module <pathToThisFile>.psm1
+    Import-Module <pathToThisFile>.psm1  
+
+    # If Import-Module fails, options include:
+    #  1. See about_Execution_Policies in PowerShell doc, and notice Unblock-File option. Then retry Import-Module.
+    #  2. Execute the definition of the functions by highlighting in ISE then Run Selection.
+    #
   
   To see commands available from this module:
     Get-Command -Module <nameOfThisModule>  
@@ -60,7 +65,7 @@ function Get-OpsSession {
       set inside this function persist after the function stops running. This means $server and $authtoken will have values (but so 
       will some other variable names which are meant to be internal to this function, for example $password which holds the password you enter).
   
-  #>
+#>
 
   [cmdletbinding()]Param(
     $server,
@@ -275,7 +280,7 @@ function Get-OpsAuthToken {
       Save in $authToken the value of the token property in the first positive result.
       -silent prevents printing warning
     
-  #>
+#>
       
     [cmdletbinding()]Param(
         # The vROps FQDN (fully-qualified domain name).
@@ -391,7 +396,7 @@ function Set-SecurityCertificateSettings {
             The underlying connection was closed. An unexpected error occurred on a send.
         
         Changes [System.Net.ServicePointManager]::CertificatePolicy
-    #>
+#>
     
     [cmdletbinding()]Param(
         # If this switch is used, change this session's [System.Net.ServicePointManager]::CertificatePolicy to accept any certificate.
@@ -427,7 +432,7 @@ function Set-SecurityProtocol {
 <#
     .SYNOPSIS
       Specify which security protocol to use for web requests e.g. TLS 1.2 vs. SSL3.
-  #>
+#>
     
     [cmdletbinding()]Param(
         # Name of one security protocol which should be used during this PowerShell session. E.g. 'Tls12' or 'Ssl3'.
@@ -442,12 +447,11 @@ function Set-SecurityProtocol {
   
     
 function Get-SecurityProtocol {   
-  <#
+<#
   .SYNOPSIS
       Display which security protocol to use for web requests e.g. TLS 1.2 vs. SSL3.
-  #>                                                                                               
+#>                                                                                             
     [Net.ServicePointManager]::SecurityProtocol         
-       
 }
     
     
