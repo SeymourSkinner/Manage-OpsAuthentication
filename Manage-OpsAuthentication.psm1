@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.8 (2020/12/21) 
+  Version: 1.9 (2021/1/4) 
   Author: Craig Risinger
   License: freeware, without any warranty
   
@@ -9,7 +9,7 @@
     Import-Module <pathToThisFile>.psm1  
 
     # If Import-Module fails, options include:
-    #  1. See about_Execution_Policies in PowerShell doc, and notice Unblock-File option. Then retry Import-Module.
+    #  1. See about_Execution_Policies in PowerShell doc, notice and use the Unblock-File option. Then retry Import-Module.
     #  2. Execute the definition of the functions by highlighting in ISE then Run Selection.
     #
   
@@ -26,7 +26,7 @@
   Typical way to get a session:
     $server,$authtoken = Get-OpsSession -returnValues -TrustAllCerts 
 
-  To see how to store multiple server/authtoken pairs (for working across multiple vROps clusters):
+  To see how to store and use multiple server/authtoken pairs (for working across multiple vROps clusters):
     Get-Help -Full Get-OpsAuthHash
 
 #>
@@ -38,42 +38,39 @@ function Get-OpsSession {
       Get a sort of session with vROps by prompting for login information and returning server name and authentication token values. Save those in $server and $authtoken.
   
     .DESCRIPTION
+      This function prompts you for login input, gets an authentication token, and returns the relevant values, which you should save in variables.
+      Recommended variable names are $server and $authtoken to obviate some typing.
       Some PowerShell vROps commands have parameters for -server and -authtoken. Many of those commands will inherit
-      any values you have already set at the command line for $server and $authtoken. So, if you set valid
-      values for $server and $authtoken, you can just say "Do-OpsSomething" instead of "Do-OpSomething -server <myserver> -authtoken <myauthtoken>"
-      This function prompts you for login input, gets an authentication token, and returns the relevant values.
+      any values you have already set at the command line for variables called $server and $authtoken. So, if you set valid
+      values for $server and $authtoken, you can just say "Do-OpsSomething" instead of "Do-OpsSomething -server $server -authtoken $authtoken"
       
     .EXAMPLE
       $server,$authtoken = Get-OpsSession -returnValues
   
-      This is the recommended way.
-  
       Prompt user for login information. Return both the servername of the vROps and a valid authentication token for it, and
-      save those in $server and $authtoken.
+      save those in $server and $authtoken. It is recommended to use `'$server`' and `'$authtoken`' as the variable names, because
+      many functions will inherit those values without having to specify -server or -authtoken parameters.
   
    .EXAMPLE
       $server,$authtoken = Get-OpsSession -returnValues -TrustAllCerts
   
       -TrustAllCerts means that your PowerShell session will trust self-signed certificates when attempting secure connections.
-  
-    .EXAMPLE
-      . Get-OpsSession 
-  
-      This way is deprecated. It is provided for simplicity of use.
-      
-      Note the initial ". ", which is "dot-sourcing" the function. That makes the values of variables
-      set inside this function persist after the function stops running. This means $server and $authtoken will have values (but so 
-      will some other variable names which are meant to be internal to this function, for example $password which holds the password you enter).
-  
+    
 #>
 
   [cmdletbinding()]Param(
+    # Location of the vROps to login to, usually FQDN. If not specified as a parameter, you will be prompted.
     $server,
+
+    # Name of the authentication source you choose on the login page of the vROps UI. If not specified as a parameter, you will be prompted.
     $vRopsAuthSource,
+
+    # Username for login into vROps. If not specified as a parameter, you will be prompted.
     $username,
     
-    # If used, function returns values which can be saved into $server,$authtoken. Otherwise, you must dot-source to set those variables in the calling function/shell.
-    # Note that we do not want to display authtoken carelessly on the screen, because that is equivalent to a username and password.
+    # If used, function returns values which can be saved into $server,$authtoken. 
+    # Note that we do not want to display authtoken carelessly on the screen, because that is equivalent to a username and password. So if you do not read the doc and
+    # just run the command without this parameter, we throw an error rather than risk displaying sensitive information.
     [switch]$returnValues,
 
     # If used, all certificates will be trusted. Useful if your vROps certificate is not signed by a regular Certificate Authority (CA).
@@ -85,13 +82,11 @@ function Get-OpsSession {
   
   # Prompt users who have not read the help
   if (-not $returnValues ) {
-      write-warning "Invoke this function saving output into variables called `$server and `$authtoken, like this: 
+      throw "Do `"Get-Help -Full Get-OpsSession`" for full details. In short, invoke this function saving output into variables called `$server and `$authtoken, like this: 
 
           `$server,`$authtoken = Get-OpsSession -returnValues
 
       "
-      write-host "The above is preferable, but you could dot-source this function to get the variable values to persist:  . Get-OpsSession"
-      write-host "Dot-sourcing will make values for `$server and `$authtoken (but also all other variables inside this function) persist after the function finishes running."
   }
 
   # security
@@ -103,7 +98,7 @@ function Get-OpsSession {
   # prompt for login info
   if ( -not $server ) { $server = Read-Host -Prompt "Enter FQDN of vROps server" }
   if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter nothing or `"local`"." }
-  if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = 'local' }
+  if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = 'local' } # default
   if ( -not $local:username) { $local:username = Read-Host -prompt "Enter username for $server" }
   $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username $($username) on server $($server)"
   $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
@@ -124,7 +119,7 @@ function Get-OpsAuthHash {
     Get a vrops-to-authenticationToken hashtable, to facilitate operating on multiple vROps servers.
 
   .DESCRIPTION
-    Returns a hashtable where the key is a vROps FQDN and the value is a corresponding authentication token.
+    Return a hashtable where the key is a vROps FQDN and the value is a corresponding authentication token.
     Once you have this, it is easier to do commands across multiple vROps, because this associates vROps name to an authentication
     token. See examples.
 
@@ -459,41 +454,12 @@ function Get-SecurityProtocol {
   
 function Show-HowToGetOpsSession {
   
-    write-host "Getting a session:"
-    write-host ""
-    write-host 'Use a username and password to get an authentication token. Save the vROps name in $server and the token in $authtoken. That gives you 
-a sort of session. Commands can use those variables to connect to the vROps. You can pass them in as parameters to commands (such as 
-"get-OpsSomething -server $server -authtoken $authtoken XYZ..."). Some commands might not require explicitly stating the parameters but instead use 
-the values automatically as long as you save them in variables called $server and $authtoken (just "get-OpsSomething XYZ...").
-'
-  
-    write-host 'Run the following commands:
-  
-# set $server and $authtoken
-    # set variables
-    $server = Read-Host -Prompt "Enter FQDN of vROps server"
-    $username = Read-Host -prompt "Enter username for $server"
-    $vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter `"local`"."
-    $secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username"
-    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
-    $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-  
-  
-    # get authentication token
-    $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
-'
-    write-host 'If you get errors, you might need to run these commands first and retry:
-# Trust all certificates including self-signed
-    Set-SecurityCertificateSettings -TrustAllCerts
-          
-# Tell PowerShell to use TLS1.2 for encryption, required by vROps as of 7.5
-    Set-SecurityProtocol TLS12   
-'
-
+    write-host "For help getting a session, do: get-help -examples Get-OpsSession"
+    write-host `n
     write-host 'If you need to work with multiple vROps, try: get-help Get-OpsAuthHash -full'
   
 }
-  
-  
-  
+
+
+
   
