@@ -183,6 +183,12 @@ function Get-OpsAuthHash {
         if ( -not $AuthHash ) {
             $AuthHash = @{}
         }
+        
+        if ( $SameUsernames ) {
+          if ( -not $username ) {
+            $username = read-host "Enter username for authentication source $($vRopsAuthSource) on all the vROps servers"
+          }
+        }
     }
 
     PROCESS {
