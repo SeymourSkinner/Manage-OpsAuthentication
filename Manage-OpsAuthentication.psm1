@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 1.9 (2021/1/4) 
+  Version: 2.0 (2021/9/10) 
   Author: Craig Risinger
   License: freeware, without any warranty
   
