@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 2.0 (2021/9/10) 
+  Version: 2.0.1 (2021/11/23) # get-opsauthhash all same passwords
   Author: Craig Risinger
   License: freeware, without any warranty
   
@@ -28,6 +28,9 @@
 
   To see how to store and use multiple server/authtoken pairs (for working across multiple vROps clusters):
     Get-Help -Full Get-OpsAuthHash
+
+  VERSION NOTES
+    2.0.1: added -samePasswords to Get-OpsAuthhash and -password to Get-OpsSession
 
 #>
 
@@ -68,6 +71,9 @@ function Get-OpsSession {
     # Username for login into vROps. If not specified as a parameter, you will be prompted.
     $username,
     
+    # Password as you would enter it at the vROps GUI login page. If not specified, you will be prompted to enter it as a secure string.
+    [string]$password,
+    
     # If used, function returns values which can be saved into $server,$authtoken. 
     # Note that we do not want to display authtoken carelessly on the screen, because that is equivalent to a username and password. So if you do not read the doc and
     # just run the command without this parameter, we throw an error rather than risk displaying sensitive information.
@@ -100,9 +106,11 @@ function Get-OpsSession {
   if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = Read-Host -Prompt "Enter name of the Authentication Source for logging into vROps. If local user, enter nothing or `"local`"." }
   if ( -not $local:vropsAuthSource ) { $local:vropsAuthSource = 'local' } # default
   if ( -not $local:username) { $local:username = Read-Host -prompt "Enter username for $server" }
-  $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username $($username) on server $($server)"
-  $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
-  $local:password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+  if ( -not $local:password) {
+      $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username $($username) on server $($server)"
+      $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
+      $local:password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+  }
 
   $authtoken = Get-OpsAuthToken -noMetadata -Server $server -username $username -password $password -vROpsAuthSource $vropsAuthSource 
 
@@ -141,11 +149,11 @@ function Get-OpsAuthHash {
 
   .EXAMPLE
     # Prompt user on each server for both username and password.
-    $myCreds = Get-OpsAuthHash -serverList $servers -SameUsernames $false 
+    $myCreds = Get-OpsAuthHash -serverList $servers -SameUsernames $false -Samepasswords $false
 
   .EXAMPLE
     # Prompt user once for username to be used on all servers, but prompt user on each server for password for AD login via MyMainAD auth source on vROps.
-    $myCreds = $servers | Get-OpsAuthHash -SameUsernames $true  -vropsAuthSource MyMainAD
+    $myCreds = $servers | Get-OpsAuthHash -SameUsernames $true -Samepasswords $false -vropsAuthSource MyMainAD
 
   .EXAMPLE
     # Take existing AuthHash and add new servers or correct mistaken or expired authtoken entries.E.g. maybe $ah has authtokens for myVROps01..22, except
@@ -161,8 +169,13 @@ function Get-OpsAuthHash {
         # List of the FQDNs of all vROps for which you want to get auth tokens.
         $serverList,
 
+        # Optional. If not supplied, you will be prompted.
         [string]
         $username,
+
+        # Optional. If not supplied, you will be prompted.
+        [string]
+        $password,
 
         [string]
         $vRopsAuthSource = 'local',
@@ -174,8 +187,11 @@ function Get-OpsAuthHash {
         [switch]
         $TrustAllCerts,
 
-        # If set to $false, will be prompted for username on each server.
-        $SameUsernames = $true
+        # If set to $false, you will be prompted for username on each server.
+        [boolean]$SameUsernames = $true,
+
+        # If set to $false, you will be prompted for password on each server.
+        [boolean]$SamePasswords = $true
         
     )
     
@@ -185,10 +201,23 @@ function Get-OpsAuthHash {
         }
         
         if ( $SameUsernames ) {
-          if ( -not $username ) {
-            $username = read-host "Enter username for authentication source $($vRopsAuthSource) on all the vROps servers"
-          }
+            
+            if ( -not $username ) {
+                $username = read-host "Enter username for authentication source $($vRopsAuthSource) on all the vROps servers"
+            }
+
         }
+
+        if ( $SamePasswords ) {
+            
+            if ( -not $password ) {
+                $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username $($username)"
+                $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
+                $local:password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+            }
+
+        }
+ 
     }
 
     PROCESS {
@@ -201,12 +230,17 @@ function Get-OpsAuthHash {
                 $username = read-host "Enter username for authentication source $($vRopsAuthSource) on vROps $($s)"
             }
 
-            if ( $TrustAllCerts ) {
-                $srv,$token = Get-OpsSession -returnValues -server $s -username $username -vRopsAuthSource $vRopsAuthSource -TrustAllCerts 
-            } else {
-                $srv,$token = Get-OpsSession -returnValues -server $s -username $username -vRopsAuthSource $vRopsAuthSource 
+            if ( -not $SamePasswords ) {
+                $local:secStringPassword = Read-Host -asSecureString -Prompt "Enter password for username $($username) on server $($server)"
+                $local:BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secStringPassword)
+                $local:password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
             }
 
+            if ( $TrustAllCerts ) {
+                $srv,$token = Get-OpsSession -returnValues -server $s -username $username -password $password -vRopsAuthSource $vRopsAuthSource -TrustAllCerts 
+            } else {
+                $srv,$token = Get-OpsSession -returnValues -server $s -username $username -password $password -vRopsAuthSource $vRopsAuthSource 
+            }
             $AuthHash[$srv] = $token 
 
         }
