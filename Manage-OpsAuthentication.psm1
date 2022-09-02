@@ -1,6 +1,6 @@
 <#
   Purpose: Support authentication with the vRealize Operations Manager RESTful API
-  Version: 2.0.1 (2021/11/23) # get-opsauthhash all same passwords
+  Version: See Notes below
   Author: Craig Risinger
   License: freeware, without any warranty
   
@@ -29,8 +29,13 @@
   To see how to store and use multiple server/authtoken pairs (for working across multiple vROps clusters):
     Get-Help -Full Get-OpsAuthHash
 
+  To see how to revoke authentication tokens
+    Get-Help -Full Revoke-OpsAuthToken
+    Get-Help -Full Revoke-OpsAuthHash
+
   VERSION NOTES
-    2.0.1: added -samePasswords to Get-OpsAuthhash and -password to Get-OpsSession
+    2022/08/11 2.0.2: added Revoke-OpsAuthHash 
+    2021/11/23 2.0.1: added -samePasswords to Get-OpsAuthhash and -password to Get-OpsSession
 
 #>
 
@@ -416,6 +421,46 @@ function Revoke-OpsAuthToken {
 
 }
     
+
+function Revoke-OpsAuthHash {
+<#
+  .SYNOPSIS
+    Revoke all authentication tokens from an AuthHash.
+
+  .DESCRIPTION
+    Revoke authentication tokens from an AuthHash. AuthHash is collection of key-value pairs of the form { (server:authentication token), (s2:a2), ... }
+
+  .EXAMPLE
+    # Revoke all authtokens saved in $AuthHash and show each server as you go.
+    Revoke-OpsAuthHash $AuthHash -showServers 
+
+  .NOTES
+    2022/08/11 v1.0.1
+#>
+
+    [cmdletbinding()]param(
+
+        [parameter(Mandatory=$true)]
+        # AuthHash is collection of key-value pairs of the form { (server:authentication token), (server:authentication token) ... }
+        $AuthHash,
+
+        # Switch. If used, show names of servers as you revoke tokens.
+        [switch]
+        $showServers
+    
+    )
+
+    foreach ($s in $AuthHash.keys) {
+
+        $a = $AuthHash.$s 
+
+        if ( $showServers ) { Write-Host "$(date) Revoking authtoken for server $($s)" }
+
+        $result = Revoke-OpsAuthToken -Server $s -authToken $a 
+
+    }
+
+}
 
 
 
